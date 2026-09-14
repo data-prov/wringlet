@@ -3,7 +3,7 @@
 #
 SCALA_MINOR_VERSION ?= $(shell cat SCALA_MINOR_VERSION)
 SCALA_PACKAGE_NAME ?= dp-spark
-SCALA_PACKAGE_VERSION ?= $(shell cat VERSION)
+SCALA_PACKAGE_VERSION ?= $(shell cat ../VERSION)
 SCALA_PACKAGE_JAR ?= $(SCALA_PACKAGE_NAME)_$(SCALA_MINOR_VERSION)-$(SCALA_PACKAGE_VERSION).jar
 
 .PHONY: info clean compile build test publish-local lint fix-lint format-check format check fix
