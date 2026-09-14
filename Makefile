@@ -3,15 +3,106 @@
 #
 SC_DIR ?= scala-spark-wringlet
 PY_DIR ?= pyspark-wringlet
+VERSION_FILE ?= VERSION
+VERSION := $(shell cat $(VERSION_FILE))
 SCALA_PACKAGE_NAME ?= dp-spark
-SCALA_PACKAGE_VERSION ?= $(shell cat $(SC_DIR)/VERSION)
 SCALA_MINOR_VERSION ?= $(shell cat $(SC_DIR)/SCALA_MINOR_VERSION)
-SCALA_PACKAGE_JAR ?= $(SCALA_PACKAGE_NAME)_$(SCALA_MINOR_VERSION)-$(SCALA_PACKAGE_VERSION).jar
+SCALA_PACKAGE_JAR ?= $(SCALA_PACKAGE_NAME)_$(SCALA_MINOR_VERSION)-$(VERSION).jar
 
-.PHONY: info scala-check scala-fix scala-build python-clean python-init-uv-python python-bump-package python-bump-to-major-version python-bump-to-minor-version python-bump-to-patch-version python-increment-dev-version python-init python-build python-check python-fix python-test python-publish python-publish-testpypi python-install-local python-run-local
+.PHONY: info check-version-format-branch add-branch-name-to-version increment-dev-version bump-to-major-version bump-to-minor-version bump-to-patch-version scala-check scala-fix scala-build python-clean python-init-uv-python python-bump-package python-bump-to-major-version python-bump-to-minor-version python-bump-to-patch-version python-increment-dev-version python-init python-build python-check python-fix python-test python-publish python-publish-testpypi python-install-local python-run-local
+
+check-version-format-branch:
+	@VERSION_REGEX="^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?(\+[a-zA-Z0-9\.]+)?$$"; \
+	NORMALIZED_BRANCH=$$(git rev-parse --abbrev-ref HEAD | sed 's/[^a-zA-Z0-9]/./g' | tr '[:upper:]' '[:lower:]'); \
+	echo "Checking version format on branch: $$(git rev-parse --abbrev-ref HEAD), version: $(VERSION)"; \
+	if [ "$$(git rev-parse --abbrev-ref HEAD)" != "main" ]; then \
+		if ! echo "$(VERSION)" | grep -Eq "$$VERSION_REGEX"; then \
+			echo "WARNING: Version does not match the required format (X.Y.Z or X.Y.Z.devN or X.Y.Z(.devN)+branch.name)"; \
+			echo "See: https://peps.python.org/pep-0440/ for more information."; \
+		fi; \
+		if ! echo "$(VERSION)" | grep -Eq "\+$$NORMALIZED_BRANCH$$"; then \
+			echo "WARNING: Version does not end with the normalized branch name ($$NORMALIZED_BRANCH)"; \
+			echo "Recommendation: run 'make add-branch-name-to-version' to correct the version."; \
+		else \
+			echo "Version format is correct for branch: $$(git rev-parse --abbrev-ref HEAD)."; \
+		fi; \
+	else \
+		echo "Skipping branch name check on main branch."; \
+		if ! echo "$(VERSION)" | grep -Eq "$$VERSION_REGEX"; then \
+			echo "WARNING: Version does not match the required format (X.Y.Z or X.Y.Z.devN)"; \
+			echo "See: https://peps.python.org/pep-0440/ for more information."; \
+		else \
+			echo "Version format is correct for main branch."; \
+		fi; \
+	fi
+
+add-branch-name-to-version:
+	$(eval BRANCH_NAME=$(shell [ -n "$$GITHUB_HEAD_REF" ] && echo "$$GITHUB_HEAD_REF" || echo "$${GITHUB_REF#refs/heads/}" | sed 's|refs/pull/.*||' | tr '[:upper:]' '[:lower:]'))
+	$(eval CLEAN_BRANCH_NAME=$(shell echo "$(BRANCH_NAME)" | sed 's/[^a-zA-Z0-9]/./g' | tr '[:upper:]' '[:lower:]'))
+	$(eval NEW_VERSION=$(shell echo "$(VERSION)" | sed 's/\+.*//'))
+	$(eval NEW_VERSION=$(NEW_VERSION)+$(CLEAN_BRANCH_NAME))
+	@echo "Updating version from: $(VERSION) to: $(NEW_VERSION)"
+	@echo "$(NEW_VERSION)" > $(VERSION_FILE)
+	@git add $(VERSION_FILE)
+
+increment-dev-version:
+	@VERSION_REGEX="^[0-9]+\.[0-9]+\.[0-9]+$$"; \
+	DEV_VERSION_REGEX="^[0-9]+\.[0-9]+\.[0-9]+\.dev[0-9]+$$"; \
+	echo "Current version: $(VERSION)"; \
+	if echo "$(VERSION)" | grep -Eq "$$VERSION_REGEX"; then \
+		NEW_VERSION=$$(echo "$(VERSION)" | awk -F. '{print $$1"."$$2"."$$3+1".dev0"}'); \
+		echo "Updating release version to the next minor dev version: $$NEW_VERSION"; \
+	elif echo "$(VERSION)" | grep -Eq "$$DEV_VERSION_REGEX"; then \
+		NEW_VERSION=$$(echo "$(VERSION)" | awk -F'.dev' '{print $$1".dev"($$2+1)}'); \
+		echo "Updating dev version to: $$NEW_VERSION"; \
+	else \
+		echo "ERROR: Version format is invalid. Should be X.Y.Z or X.Y.Z.devN"; \
+		exit 1; \
+	fi; \
+	echo "$$NEW_VERSION" > $(VERSION_FILE); \
+	git add $(VERSION_FILE)
+
+bump-to-minor-version:
+	@VERSION_REGEX="^[0-9]+\.[0-9]+\.[0-9]+\.dev[0-9]+$$"; \
+	echo "Current version: $(VERSION)"; \
+	if echo "$(VERSION)" | grep -Eq "$$VERSION_REGEX"; then \
+		NEW_VERSION=$$(echo "$(VERSION)" | sed 's/\.dev[0-9]*//'); \
+		echo "Bumping to the minor version: $$NEW_VERSION"; \
+	else \
+		echo "ERROR: Version format is invalid. Should be X.Y.Z.devN"; \
+		exit 1; \
+	fi; \
+	echo "$$NEW_VERSION" > $(VERSION_FILE); \
+	git add $(VERSION_FILE)
+
+bump-to-major-version:
+	@VERSION_REGEX="^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?(\+[a-zA-Z0-9._-]+)?$$"; \
+	echo "Current version: $(VERSION)"; \
+	if echo "$(VERSION)" | grep -Eq "$$VERSION_REGEX"; then \
+		NEW_VERSION=$$(echo "$(VERSION)" | sed 's/\(\.dev[0-9]*\)\?\(\+[a-zA-Z0-9._-]*\)\?//g' | awk -F'[.]' '{print $$1+1".0.0"}'); \
+		echo "Bumping to the major version: $$NEW_VERSION"; \
+	else \
+		echo "ERROR: Version format is invalid. Should be X.Y.Z, X.Y.Z.devN, X.Y.Z+branch.name, or X.Y.Z.devN+branch.name"; \
+		exit 1; \
+	fi; \
+	echo "$$NEW_VERSION" > $(VERSION_FILE); \
+	git add $(VERSION_FILE)
+
+bump-to-patch-version:
+	@VERSION_REGEX="^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?(\+[a-zA-Z0-9._-]+)?$$"; \
+	echo "Current version: $(VERSION)"; \
+	if echo "$(VERSION)" | grep -Eq "$$VERSION_REGEX"; then \
+		NEW_VERSION=$$(echo "$(VERSION)" | sed 's/\(\.dev[0-9]*\)\?\(\+[a-zA-Z0-9._-]*\)\?//g' | awk -F'[.]' '{print $$1"."$$2"."$$3+1}'); \
+		echo "Bumping to the patch version: $$NEW_VERSION"; \
+	else \
+		echo "ERROR: Version format is invalid. Should be X.Y.Z, X.Y.Z.devN, X.Y.Z+branch.name, or X.Y.Z.devN+branch.name"; \
+		exit 1; \
+	fi; \
+	echo "$$NEW_VERSION" > $(VERSION_FILE); \
+	git add $(VERSION_FILE)
 
 info:
-	@echo "Package version: $(SCALA_PACKAGE_VERSION) - Scala version: $(SCALA_MINOR_VERSION)"
+	@echo "Package version: $(VERSION) - Scala version: $(SCALA_MINOR_VERSION)"
 
 # Build project
 scala-check:
