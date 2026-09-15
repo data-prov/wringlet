@@ -1,0 +1,75 @@
+name: Fix request
+description: Report incorrect or unexpected behavior in Wringlet.
+title: "[Fix]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. A small reproducible example helps us investigate quickly.
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Bug description
+      description: Describe what happened and where it occurred. Include error messages or stack traces when available.
+      placeholder: When I run..., Wringlet...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Describe the behavior or result you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal, self-contained example with inputs, configuration, and commands.
+      placeholder: |
+        1. Configure...
+        2. Run...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: Tell us how you think this could be fixed, if you have an idea.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: Select the component where you observed the problem.
+      options:
+        - Scala package
+        - Python package
+        - Documentation
+        - Build or CI
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Wringlet version or commit
+      description: Provide the released package version or the Git commit SHA.
+      placeholder: 1.2.3 or abc1234
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Python or Java/Scala version, Spark version, and deployment context as applicable.
+      placeholder: Ubuntu 24.04, Python 3.12, Spark 3.5.1
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add logs, screenshots, related issues, or other context that might help.

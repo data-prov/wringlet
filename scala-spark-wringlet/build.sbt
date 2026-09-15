@@ -35,7 +35,7 @@ developers := List(
 
 //useGpg := true
 
-version := scala.io.Source.fromFile("VERSION").getLines.toList.head
+version := scala.io.Source.fromFile(baseDirectory.value / ".." / "VERSION").getLines.toList.head
 scalaVersion := "2.13.18"
 val sparkVersion = "4.1.1" 
 

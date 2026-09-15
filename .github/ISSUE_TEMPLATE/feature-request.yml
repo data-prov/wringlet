@@ -1,0 +1,58 @@
+name: Feature request
+description: Suggest an improvement to Wringlet.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement. Please describe the problem and the outcome you need.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Clearly describe the feature or behavior you would like added or changed.
+      placeholder: I would like Wringlet to...
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation and use case
+      description: What problem does this solve? Who benefits, and what is the current workaround?
+      placeholder: This would help when...
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solutions
+    attributes:
+      label: Proposed solution(s)
+      description: Describe one or more possible solutions, including relevant behavior examples where useful.
+      placeholder: One possible approach is...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe other approaches or workarounds you considered, if any.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: Select the component most related to this request.
+      multiple: true
+      options:
+        - Scala package
+        - Python package
+        - Documentation
+        - Build or CI
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add links, screenshots, prior art, or any other useful context.

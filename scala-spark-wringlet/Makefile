@@ -3,10 +3,28 @@
 #
 SCALA_MINOR_VERSION ?= $(shell cat SCALA_MINOR_VERSION)
 SCALA_PACKAGE_NAME ?= dp-spark
-SCALA_PACKAGE_VERSION ?= $(shell cat VERSION)
+SCALA_PACKAGE_VERSION ?= $(shell cat ../VERSION)
 SCALA_PACKAGE_JAR ?= $(SCALA_PACKAGE_NAME)_$(SCALA_MINOR_VERSION)-$(SCALA_PACKAGE_VERSION).jar
 
-.PHONY: info clean compile build test publish-local lint fix-lint format-check format check fix
+.PHONY: info check-version-format-branch add-branch-name-to-version increment-dev-version bump-to-major-version bump-to-minor-version bump-to-patch-version clean compile build test publish-local lint fix-lint format-check format check fix
+
+check-version-format-branch:
+	$(MAKE) -C .. check-version-format-branch
+
+add-branch-name-to-version:
+	$(MAKE) -C .. add-branch-name-to-version
+
+increment-dev-version:
+	$(MAKE) -C .. increment-dev-version
+
+bump-to-major-version:
+	$(MAKE) -C .. bump-to-major-version
+
+bump-to-minor-version:
+	$(MAKE) -C .. bump-to-minor-version
+
+bump-to-patch-version:
+	$(MAKE) -C .. bump-to-patch-version
 
 info:
 	@echo "Package version: $(SCALA_PACKAGE_VERSION) - Scala version: $(SCALA_MINOR_VERSION)"
