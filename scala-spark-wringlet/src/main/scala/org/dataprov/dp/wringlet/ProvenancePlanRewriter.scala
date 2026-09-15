@@ -17,6 +17,7 @@ import org.apache.spark.sql.catalyst.plans.logical.Window
 import org.apache.spark.sql.catalyst.plans.logical.Except
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.InSubquery
 
 
 private[wringlet] final class ProvenancePlanRewriter(
@@ -38,79 +39,74 @@ private[wringlet] final class ProvenancePlanRewriter(
 
   def provColName: String = provenanceColumnName(spark)
 
-  def outputsProvenance(plan: LogicalPlan): Boolean =
+  def outputsProvenance(plan: LogicalPlan): Boolean = {
+    // A plan outputs provenance if it has the provenance column in its output attributes.
     LogicalPlanIntegrity.canGetOutputAttrs(plan) && plan.output.exists(
-      _.name == provColName
+    _.name == provColName
     )
-  
-  def getProvenanceAttribute(plan: LogicalPlan): Attribute =
-    if (LogicalPlanIntegrity.canGetOutputAttrs(plan))
-      plan.output.reverse.find(_.name == provColName).get
-    else throw new IllegalArgumentException("Plan is not resolved")
+  }
+    
+  def getProvenanceAttribute(plan: LogicalPlan): Attribute = {
+    // Retrieves the provenance attribute from the plan's output attributes.
+    if (LogicalPlanIntegrity.canGetOutputAttrs(plan)){
+        plan.output.find(_.name == provColName).get
+    } else throw new IllegalArgumentException("Plan is not resolved")
+  }
+    
 
+  /**
+    * Rewrites a Project node to ensure that the provenance column is included if the child outputs it.
+    * Project nodes correspond to SELECT statements in SQL and select/withColumn operations in Spark.
+    * They define which columns are included in the output.
+    *
+    * @param project The Project node to rewrite.
+    * @return The rewritten Project node with the provenance column included if necessary.
+    */
   private def rewriteProject(project: Project): LogicalPlan = {
-    val projectHasProvenance = project.projectList.exists(_.name == provColName)
+    val projectListsProvenance = project.projectList.exists(_.name == provColName)
 
-    if (!projectHasProvenance && outputsProvenance(project.child)) {
+    if (!projectListsProvenance && outputsProvenance(project.child)) {
+        // If the project node does not list the provenance column, but the child outputs it:
+        // we need to add the provenance column to the project list.
         val provenance = getProvenanceAttribute(project.child)
         project.copy(
             projectList = project.projectList :+ Alias(provenance, provColName)()
         )
     } else {
+        // If the project node already lists the provenance column or the child does not output it anyway:
+        // we do not need to modify the project node.
         project
     }
   }
 
-//     val safeProjectList = project.projectList.asInstanceOf[Seq[Expression]]
-    
-//     // We check if the child has the provenance column and if the project itself already has it
-//     val childHasProv = hasProv(project.child, provenanceColName)
+  private def rewriteFilter(filter: Filter): LogicalPlan = {
+    // TODO: wrong logic! => there is probably something to be done with ProvenancePredicateSubqueryRule
+    // Filter nodes correspond to WHERE clauses in SQL and filter operations in Spark.
+    // They do not change the output columns, so we can simply rewrite the child and keep the filter as is.
+    val newCondition = filter.condition.transform {
+        // We look for 'InSubquery' expressions, which represent IN subqueries
+        // Provenance should not be included in the IN subquery's output, so we remove it if present.
+        case inSub @ InSubquery(values, query) =>
+            val subPlan = query.plan
+            // If the IN subquery plan contains the provenance column, we need to remove it
+            if (outputsProvenance(subPlan)) {
+                val outputsWithoutProvenance = subPlan.output.filter(_.name != provColName)
+                val subqueryPlanWithoutProvenance = Project(outputsWithoutProvenance, subPlan)
+                // We create a new ListQuery with the provenance column removed
+                val newQuery = query.copy(
+                    plan = subqueryPlanWithoutProvenance,
+                    numCols = outputsWithoutProvenance.length
+                )
+                inSub.copy(query = newQuery)
+            } else {
+                inSub
+            }
+    }
+    // We return a new Filter node with the updated condition
+    filter.copy(condition = newCondition)
+    filter
+  }
 
-//     // We partition the projectList into provenance expressions and non-provenance expressions
-//     val (provExprs, nonProvExprs) = safeProjectList.partition {
-//         case Alias(_, name)  => name == provenanceColName
-//         case attr: Attribute => attr.name == provenanceColName
-//         case _               => false
-//     }
-
-//     // We filter the non-provenance expressions to keep only those that reference
-//     // columns from the child output
-//     val validNonProvExprs = nonProvExprs.filter(expr =>
-//         expr.references.subsetOf(project.child.outputSet)
-//     )
-
-//     if (childHasProv) {
-//         val childProvAttr = getProvAttr(child, provenanceColName)
-//         // Reuse the existing provenance expression if all its references are still
-//         // satisfied by the current child output (multi-pass stability: a fresh alias
-//         // added on a previous pass is preserved unchanged on subsequent passes).
-//         // Otherwise create a fresh Alias so that two derivations of the same source
-//         // each get a distinct ExprId — required for correct self-join provenance
-//         // tracking (without this, both sides of the join share the same ExprId and
-//         // Spark resolves both references to the same row value).
-//         val provExpr = provExprs
-//         .collectFirst {
-//             case expr if expr.references.subsetOf(child.outputSet) => expr
-//         }
-//         .getOrElse(Alias(childProvAttr, provenanceColName)())
-//         project.copy(
-//         projectList = (validNonProvExprs :+ provExpr)
-//             .asInstanceOf[Seq[NamedExpression]],
-//         child = child
-//         )
-//     } else if (validNonProvExprs.size != nonProvExprs.size) {
-//         // If some expressions were removed because they reference columns that are no longer present
-//         // in the child output, we need to update the project list
-//         project.copy(
-//         projectList =
-//             validNonProvExprs.asInstanceOf[Seq[NamedExpression]],
-//         child = child
-//         )
-//     } else {
-//         project
-//     }
-//   }
-  private def rewriteFilter(filter: Filter): LogicalPlan = ???
   private def rewriteSort(sort: Sort): LogicalPlan = ???
   private def rewriteJoin(join: Join): LogicalPlan = ???
   private def rewriteIntersect(intersect: Intersect): LogicalPlan = ???
